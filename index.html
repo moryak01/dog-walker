@@ -2107,12 +2107,12 @@ function bkSubmit(){
       msgs: [], createdAt: Date.now()
     });
   }
-  notify(w.id, 'Новая заявка: ' + esc(dogOf(DB.bookings[DB.bookings.length - 1]).name) + ', ' + fmtDay(date0) + ' ' + $('#bkTime').value);
+  notify(w.id, 'Новая заявка: ' + dogOf(DB.bookings[DB.bookings.length - 1]).name + ', ' + fmtDay(date0) + ' ' + $('#bkTime').value);
   persist(); closeModal();
   toast(count > 1 ? 'Сетка создана: ' + count + ' выхода. Заявка отправлена ' + w.name : 'Заявка отправлена ' + w.name + '. Ответ ожидается за ~' + w.wp.answer + ' минут');
   location.hash = '#/orders';
 }
-function openBooking(id){
+function openBookingDetail(id){
   var b = DB.bookings.filter(function(x){ return x.id === id; })[0]; if (!b) return;
   var d = dogOf(b), w = walkerById(b.walkerId) || { name: b.walkerName || '—', id: b.walkerId };
   var isOwner = b.clientId === DB.session, isWalker = b.walkerId === DB.session;
@@ -2313,8 +2313,22 @@ document.addEventListener('click', function(e){
   if (a === 'burger'){ var d = $('#drawer'); d.classList.toggle('open'); document.body.style.overflow = d.classList.contains('open') ? 'hidden' : ''; return; }
   if (a === 'backdrop'){ if (!e.target.classList.contains('mbd')) return; closeModal(); return; }
   if (a === 'close'){ closeModal(); return; }
-  if (a === 'bell'){ var open = $('#ddNotif').classList.contains('open'); $$('.dd').forEach(function(x){ x.classList.remove('open'); }); $('#ddNotif').classList.toggle('open', !open);
-    var u0 = me(); if (u0.notif) u0.notif.forEach(function(n){ n.read = true; }); persist(); later(renderHeader, 400); return; }
+  if (a === 'bell'){
+    var ddN = $('#ddNotif'), opening = !ddN.classList.contains('open');
+    $$('.dd').forEach(function(x){ x.classList.remove('open'); });
+    ddN.classList.toggle('open', opening);
+    if (opening){
+      var u0 = me();
+      if (u0 && u0.notif && u0.notif.some(function(n){ return !n.read; })){
+        u0.notif.forEach(function(n){ n.read = true; });
+        persist();
+        /* обновляем шапку на месте, не перерисовывая её — иначе открытый дропдаун закрывается */
+        var bdg = $('.badge', t); if (bdg) bdg.remove();
+        $$('.notif.un', ddN).forEach(function(n){ n.classList.remove('un'); });
+      }
+    }
+    return;
+  }
   if (a === 'menu'){ var o2 = $('#ddUser').classList.contains('open'); $$('.dd').forEach(function(x){ x.classList.remove('open'); }); $('#ddUser').classList.toggle('open', !o2); return; }
   if (a === 'logout'){ DB.session = null; persist(); closeModal(); toast('Вы вышли из аккаунта'); location.hash = '#/'; render(); return; }
   if (a === 'reset'){ if (confirm('Сбросить все демо-данные и выйти из аккаунта?')){ localStorage.removeItem(KEY); location.reload(); } return; }
@@ -2406,7 +2420,7 @@ document.addEventListener('click', function(e){
   if (a === 'qslot'){ $$('#qsSlots .slot').forEach(function(s){ s.classList.remove('on'); }); t.classList.add('on'); return; }
   if (a === 'recalc'){ bkCalc(); return; }
   if (a === 'bksubmit'){ bkSubmit(); return; }
-  if (a === 'booking'){ openBookingDetails: openBookingDetail(t.dataset.id); return; }
+  if (a === 'booking'){ openBookingDetail(t.dataset.id); return; }
   if (a === 'report'){ openReport(t.dataset.id); return; }
   if (a === 'review'){ closeModal(); openReview(t.dataset.id); return; }
   if (a === 'star'){
@@ -2499,9 +2513,6 @@ document.addEventListener('click', function(e){
     DB.session = null; persist(); toast('Аккаунт удалён', 'err'); location.hash = '#/'; render(); return;
   }
 });
-/* маска для openBookingDetail (см. ниже) */
-function openBookingDetail(id){ openBooking(id); }
-
 document.addEventListener('change', function(e){
   if (e.target.closest('#bkForm')) bkCalc();
 });
@@ -2534,10 +2545,12 @@ function authSubmit(f){
     pass: $('#auPass').value, roles: [role], role: role, city: $('#auCity').value, district: $('#auDist').value,
     notif: [], saved: [], dogs: [], createdAt: Date.now(), wp: null
   };
+  DB.users.push(nu); DB.session = nu.id;
+  /* уведомление создаём после добавления пользователя в базу, иначе notify его не находит */
   notify(nu.id, role === 'walker'
     ? 'Добро пожаловать! Заполните анкету выгульщика — без неё заявки не приходят.'
     : 'Добро пожаловать! Добавьте анкету собаки, чтобы получить первый выгул.');
-  DB.users.push(nu); DB.session = nu.id; persist();
+  persist();
   toast('Аккаунт создан (' + (role === 'walker' ? 'выгульщик' : 'заказчик') + ')');
   location.hash = role === 'walker' ? '#/wprofile' : '#/profile';
   render();
